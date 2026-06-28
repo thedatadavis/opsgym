@@ -1,0 +1,16 @@
+spec:
+  name: opsgym
+  region: nyc
+  services:
+    - name: opsgym-web
+      environment_slug: node-js
+      # DigitalOcean automatically detects a Dockerfile in the repository root and builds it.
+      # If using Git integration, DigitalOcean will build using the Dockerfile we provided.
+      github:
+        branch: main
+        deploy_on_push: true
+      http_port: 3000
+      instance_count: 1
+      instance_size_slug: basic-xxs
+      routes:
+        - path: /
