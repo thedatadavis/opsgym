@@ -1,4 +1,4 @@
-import { buildQueueItem, buildRun, evaluateDecision } from "./policyEngine";
+import { applyProposedChange, buildQueueItem, buildRun, evaluateDecision, rejectProposedChange } from "./policyEngine";
 import { cloneSeedPolicies } from "./seed";
 import type {
   DecisionQueueItem,
@@ -196,6 +196,24 @@ export function applySelfImprovementResult(
     proposalId
   });
 
+  return updated;
+}
+
+export function approveServerQueueItem(policyId: string, queueItemId: string): Policy | null {
+  const policy = getServerPolicy(policyId);
+  if (!policy.decisionQueue.some((item) => item.id === queueItemId)) return null;
+
+  const updated = applyProposedChange(policy, queueItemId);
+  policies.set(policyId, updated);
+  return updated;
+}
+
+export function rejectServerQueueItem(policyId: string, queueItemId: string): Policy | null {
+  const policy = getServerPolicy(policyId);
+  if (!policy.decisionQueue.some((item) => item.id === queueItemId)) return null;
+
+  const updated = rejectProposedChange(policy, queueItemId);
+  policies.set(policyId, updated);
   return updated;
 }
 

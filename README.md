@@ -6,8 +6,7 @@
 
 ---
 
-## 📖 Hackathon Narrative: The Pitch for Judges
-
+## Introduction
 Operational AI is volatile. When we delegate consequential decisions—like billing refunds, fraud checks, account suspensions, or SLA exceptions—to autonomous agents, we run into a major safety bottleneck: **the alignment problem**. 
 
 If we give agents open-ended prompts, they hallucinate, drift, or make incorrect, un-auditable exceptions. If we lock them down with rigid scripts, they fail to handle real-world operational spillover. 
@@ -22,7 +21,7 @@ The result is **auditable recursive intelligence**: the AI continuously optimize
 
 ---
 
-## 🔄 The Self-Learning Loop
+## The Self-Learning Loop
 
 This diagram illustrates how OpsGym handles live requests, logs telemetry, triggers the self-improvement agent when a policy boundary is unclear, and commits the reviewed changes back to the endpoint.
 
@@ -63,7 +62,7 @@ graph TD
 
 ---
 
-## 🛠️ The Tech Stack
+## The Tech Stack
 
 OpsGym is built from the ground up for containerized, serverless, and agentic workflows:
 
@@ -76,7 +75,7 @@ OpsGym is built from the ground up for containerized, serverless, and agentic wo
 
 ---
 
-## 🚦 How to Demo the Self-Improvement Flow
+## How to Demo the Self-Improvement Flow
 
 1.  **Encounter an Exception:** Navigate to the **Refund Policy**. In the *Test Endpoint* input, execute an ambiguous request: *"Refund a VIP customer's damaged order from 45 days ago without manager approval."*
 2.  **Inspect the Exception:** Because this violates standard limits (30 days) and lacks validation, the system returns a `Wait` status.

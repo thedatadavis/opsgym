@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { applyProposedChange, createId, rejectProposedChange } from "@/lib/policyEngine";
+import { createId } from "@/lib/policyEngine";
 import { cloneSeedPolicies } from "@/lib/seed";
 import type { DecisionKind, DecisionQueueItem, DecisionRun, Policy, Principle } from "@/lib/types";
 
@@ -258,6 +258,10 @@ function openQueueCount(policy: Policy) {
   return policy.decisionQueue.filter((item) => item.status === "open").length;
 }
 
+function isApiError(value: unknown): value is { error?: string } {
+  return !!value && typeof value === "object" && "error" in value;
+}
+
 export default function Home() {
   const [policies, setPolicies] = useState<Policy[]>(() => cloneSeedPolicies());
   const [screen, setScreen] = useState<Screen>("dashboard");
@@ -284,6 +288,36 @@ export default function Home() {
       setPolicies(storedPolicies);
       setSelectedPolicyId(storedPolicies[0].id);
     }
+  }, []);
+
+  useEffect(() => {
+    const policyId = new URLSearchParams(window.location.search).get("policy");
+    if (!policyId) return;
+
+    let cancelled = false;
+
+    fetch(`/api/policies/${policyId}`)
+      .then((response) => response.ok ? response.json() : null)
+      .then((policy: Policy | null) => {
+        if (cancelled || !policy?.id) return;
+
+        setPolicies((current) => {
+          const exists = current.some((item) => item.id === policy.id);
+          return exists
+            ? current.map((item) => (item.id === policy.id ? policy : item))
+            : [policy, ...current];
+        });
+        setSelectedPolicyId(policy.id);
+        setScreen("policy");
+        setSection("overview");
+      })
+      .catch(() => {
+        if (!cancelled) setApiStatus("Policy link could not be loaded");
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -467,19 +501,43 @@ export default function Home() {
     setApiStatus("Decision recorded");
   }
 
-  function approveQueueItem(queueItemId: string) {
-    const updated = applyProposedChange(selectedPolicy, queueItemId);
+  async function approveQueueItem(queueItemId: string) {
+    setApiStatus("Approving policy change");
+    await syncPolicyToServer(selectedPolicy);
+
+    const response = await fetch(`/api/policies/${selectedPolicy.id}/queue/${queueItemId}/approve`, {
+      method: "POST"
+    });
+    const updated = (await response.json().catch(() => null)) as Policy | { error?: string } | null;
+
+    if (!response.ok || !updated || isApiError(updated)) {
+      setApiStatus(isApiError(updated) ? updated.error ?? "Approval failed" : "Approval failed");
+      return;
+    }
+
     updatePolicy(updated);
     setDrawer(null);
     setSection("overview");
-    void syncPolicyToServer(updated);
+    setApiStatus("Policy change approved");
   }
 
-  function rejectQueueItem(queueItemId: string) {
-    const updated = rejectProposedChange(selectedPolicy, queueItemId);
+  async function rejectQueueItem(queueItemId: string) {
+    setApiStatus("Rejecting policy change");
+    await syncPolicyToServer(selectedPolicy);
+
+    const response = await fetch(`/api/policies/${selectedPolicy.id}/queue/${queueItemId}/reject`, {
+      method: "POST"
+    });
+    const updated = (await response.json().catch(() => null)) as Policy | { error?: string } | null;
+
+    if (!response.ok || !updated || isApiError(updated)) {
+      setApiStatus(isApiError(updated) ? updated.error ?? "Rejection failed" : "Rejection failed");
+      return;
+    }
+
     updatePolicy(updated);
     setDrawer(null);
-    void syncPolicyToServer(updated);
+    setApiStatus("Policy change rejected");
   }
 
   async function improveQueueItem(queueItemId: string) {

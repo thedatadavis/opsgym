@@ -104,6 +104,15 @@ The endpoint:
 - Stores a completed proposal as the queue item's pending `proposedChange`.
 - Leaves the queue item open and keeps human approval mandatory.
 
+Approval and rejection are explicit API actions:
+
+```txt
+POST /api/policies/[policyId]/queue/[queueItemId]/approve
+POST /api/policies/[policyId]/queue/[queueItemId]/reject
+```
+
+Approval appends the pending proposed change to the policy text and resolves the queue item. Rejection marks the queue item and proposal rejected without changing policy text.
+
 Provider selection:
 
 - Default: local deterministic provider, no credentials required.
@@ -185,6 +194,23 @@ There are three reasonable integration levels:
 - Remote MCP: expose richer repo or application tools through a managed server. Use this only when the agent needs broader read/write capabilities, and scope each tool to the minimum required operations.
 
 Start with no external tools. Move to function tools only after the proposal format and reviewer flow are stable.
+
+## Claude.com Connector Layer
+
+OpsGym exposes a remote MCP endpoint for Claude.com custom connectors:
+
+```txt
+/api/mcp
+```
+
+The connector is intentionally narrow:
+
+- `decide_policy`: evaluate one action against one policy and record the run.
+- `get_policy_runs`: read recent runs and queue items for one policy.
+- `draft_policy_improvement`: call the configured self-improvement provider and store a pending proposal.
+- `approve_policy_change`: approve a pending proposal after explicit user approval.
+
+This MCP layer is for an external ops-worker agent such as Claude.com. It is separate from Gemini Managed Agents, which draft policy amendments inside OpsGym's self-improvement flow.
 
 ### Network And Credentials
 
