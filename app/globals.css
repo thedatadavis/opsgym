@@ -1188,6 +1188,54 @@ dd {
   color: var(--muted);
 }
 
+.agentSummary {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.agentProposalBlock {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 12px;
+  background: var(--surface-muted);
+}
+
+.agentCheckList,
+.agentRisks {
+  display: grid;
+  gap: 8px;
+}
+
+.agentCheckList > div {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  gap: 4px 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.agentCheckList p {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.agentCheckList small {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.agentRisks ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 /* Media Queries */
 @media (max-width: 1100px) {
   .app {

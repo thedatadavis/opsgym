@@ -266,6 +266,7 @@ export default function Home() {
   const [createDraft, setCreateDraft] = useState<CreatePolicyDraft>(() => createPolicyDraft());
   const [endpointAction, setEndpointAction] = useState(starterAction);
   const [apiStatus, setApiStatus] = useState("");
+  const [improvingQueueItemId, setImprovingQueueItemId] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "review" | "active" | "quiet">("all");
@@ -480,6 +481,30 @@ export default function Home() {
     void syncPolicyToServer(updated);
   }
 
+  async function improveQueueItem(queueItemId: string) {
+    setImprovingQueueItemId(queueItemId);
+    setApiStatus("Drafting policy improvement");
+
+    try {
+      await syncPolicyToServer(selectedPolicy);
+      const response = await fetch(`/api/policies/${selectedPolicy.id}/queue/${queueItemId}/improve`, {
+        method: "POST"
+      });
+
+      const data = (await response.json().catch(() => null)) as { policy?: Policy; error?: string } | null;
+
+      if (!response.ok || !data?.policy) {
+        setApiStatus(data?.error ?? "Agent proposal failed");
+        return;
+      }
+
+      updatePolicy(data.policy);
+      setApiStatus("Agent proposal drafted");
+    } finally {
+      setImprovingQueueItemId(null);
+    }
+  }
+
   function updatePrinciple(id: string, patch: Partial<Principle>) {
     updateSelectedPolicy({
       principles: selectedPolicy.principles.map((principle) =>
@@ -558,7 +583,13 @@ export default function Home() {
                 <h2>Queue Item Details</h2>
                 <button className="closePanelBtn" onClick={() => setSelectedQueueItemId(null)}>Close</button>
               </div>
-              <QueueDetail item={item} onApprove={approveQueueItem} onReject={rejectQueueItem} />
+              <QueueDetail
+                item={item}
+                onApprove={approveQueueItem}
+                onReject={rejectQueueItem}
+                onImprove={improveQueueItem}
+                isImproving={improvingQueueItemId === item.id}
+              />
             </div>
           );
         }
@@ -712,7 +743,13 @@ export default function Home() {
               <h2>Queue Item Details</h2>
               <button className="closePanelBtn" onClick={() => setSelectedQueueItemId(null)}>Deselect</button>
             </div>
-            <QueueDetail item={selectedItem} onApprove={approveQueueItem} onReject={rejectQueueItem} />
+            <QueueDetail
+              item={selectedItem}
+              onApprove={approveQueueItem}
+              onReject={rejectQueueItem}
+              onImprove={improveQueueItem}
+              isImproving={improvingQueueItemId === selectedItem.id}
+            />
           </div>
         );
       }
@@ -1240,12 +1277,18 @@ function RunDetail({ run }: { run: DecisionRun }) {
 function QueueDetail({
   item,
   onApprove,
-  onReject
+  onReject,
+  onImprove,
+  isImproving
 }: {
   item: DecisionQueueItem;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
+  onImprove: (id: string) => void;
+  isImproving: boolean;
 }) {
+  const proposal = item.proposedChange;
+
   return (
     <div className="drawerBody">
       <span className="badge wait">{item.status}</span>
@@ -1255,11 +1298,70 @@ function QueueDetail({
       </label>
       <p>{item.rationale}</p>
       <div className="diffBlock">
-        <strong>{item.proposedChange.title}</strong>
-        <pre className="before">{item.proposedChange.before}</pre>
-        <pre className="after">{item.proposedChange.after}</pre>
+        <strong>{proposal.title}</strong>
+        {proposal.summary ? <p className="agentSummary">{proposal.summary}</p> : null}
+        <pre className="before">{proposal.before}</pre>
+        <pre className="after">{proposal.after}</pre>
       </div>
+      {proposal.agentProvider ? (
+        <div className="agentProposalBlock">
+          <dl>
+            <div>
+              <dt>Agent</dt>
+              <dd>{proposal.agentProvider} / {proposal.agentId}</dd>
+            </div>
+            {typeof proposal.confidence === "number" ? (
+              <div>
+                <dt>Confidence</dt>
+                <dd>{Math.round(proposal.confidence * 100)}%</dd>
+              </div>
+            ) : null}
+            {proposal.interactionId ? (
+              <div>
+                <dt>Interaction</dt>
+                <dd>{proposal.interactionId}</dd>
+              </div>
+            ) : null}
+          </dl>
+          {proposal.rationale ? <p>{proposal.rationale}</p> : null}
+          {proposal.expectedBehavior && proposal.expectedBehavior.length > 0 ? (
+            <div className="agentCheckList">
+              <strong>Expected behavior</strong>
+              {proposal.expectedBehavior.map((expected, index) => (
+                <div key={`${expected.expectedDecision}-${index}`}>
+                  <span className={decisionClass(expected.expectedDecision)}>{expected.expectedDecision}</span>
+                  <p>{expected.action}</p>
+                  <small>{expected.reason}</small>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {proposal.risks && proposal.risks.length > 0 ? (
+            <div className="agentRisks">
+              <strong>Risks</strong>
+              <ul>
+                {proposal.risks.map((risk) => (
+                  <li key={risk}>{risk}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {proposal.validatorErrors && proposal.validatorErrors.length > 0 ? (
+            <div className="agentRisks">
+              <strong>Validation notes</strong>
+              <ul>
+                {proposal.validatorErrors.map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <div className="drawerActions">
+        <button disabled={item.status !== "open" || isImproving} onClick={() => onImprove(item.id)}>
+          {isImproving ? "Drafting..." : "Draft with agent"}
+        </button>
         <button className="primary" disabled={item.status !== "open"} onClick={() => onApprove(item.id)}>
           Approve
         </button>

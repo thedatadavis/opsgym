@@ -1,13 +1,24 @@
 import { buildQueueItem, buildRun, evaluateDecision } from "./policyEngine";
 import { cloneSeedPolicies } from "./seed";
-import type { DecisionRequest, DecisionResponse, Policy } from "./types";
+import type {
+  DecisionRequest,
+  DecisionResponse,
+  Policy,
+  SelfImprovementAttempt,
+  SelfImprovementInput,
+  SelfImprovementResult
+} from "./types";
 
 const globalStore = globalThis as typeof globalThis & {
   __opsgymPolicies?: Map<string, Policy>;
+  __opsgymSelfImprovementAttempts?: SelfImprovementAttempt[];
 };
 
 const policies = globalStore.__opsgymPolicies ?? new Map<string, Policy>();
 globalStore.__opsgymPolicies = policies;
+
+const selfImprovementAttempts = globalStore.__opsgymSelfImprovementAttempts ?? [];
+globalStore.__opsgymSelfImprovementAttempts = selfImprovementAttempts;
 
 function normalizeEndpointPath(id: string) {
   return `/api/policies/${id}/decision`;
@@ -110,4 +121,76 @@ export function getServerRuns(policyId: string) {
 
 export function getServerQueue(policyId: string) {
   return getServerPolicy(policyId).decisionQueue;
+}
+
+export function buildSelfImprovementInput(policyId: string, queueItemId: string): SelfImprovementInput | null {
+  const policy = getServerPolicy(policyId);
+  const queueItem = policy.decisionQueue.find((item) => item.id === queueItemId);
+  if (!queueItem) return null;
+
+  const relatedRuns = policy.runs
+    .filter((run) => run.id === queueItem.runId || run.gapType === queueItem.gapType || run.queueItemId === queueItem.id)
+    .slice(0, 12);
+  const reviewerHistory = policy.decisionQueue
+    .map((item) => item.proposedChange)
+    .filter((change) => change.queueItemId !== queueItemId)
+    .slice(0, 12);
+
+  return {
+    policy,
+    queueItem,
+    relatedRuns,
+    reviewerHistory
+  };
+}
+
+export function recordSelfImprovementAttempt(attempt: SelfImprovementAttempt) {
+  selfImprovementAttempts.unshift(attempt);
+  selfImprovementAttempts.splice(100);
+}
+
+export function applySelfImprovementResult(policyId: string, result: SelfImprovementResult): Policy {
+  const policy = getServerPolicy(policyId);
+  const proposalId = result.attempt.proposalId ?? `proposal-${Date.now().toString(36)}`;
+  const updated: Policy = {
+    ...policy,
+    decisionQueue: policy.decisionQueue.map((item) =>
+      item.id === result.proposal.queueItemId
+        ? {
+            ...item,
+            proposedChange: {
+              ...item.proposedChange,
+              id: proposalId,
+              title: result.proposal.title,
+              before: item.proposedChange.before,
+              after: result.proposal.proposedPolicyText,
+              status: "pending",
+              createdAt: result.attempt.completedAt,
+              summary: result.proposal.summary,
+              rationale: result.proposal.rationale,
+              expectedBehavior: result.proposal.expectedBehavior,
+              risks: result.proposal.risks,
+              confidence: result.proposal.confidence,
+              agentProvider: result.attempt.agentProvider,
+              agentId: result.attempt.agentId,
+              interactionId: result.attempt.interactionId,
+              validatorErrors: result.attempt.validatorErrors
+            }
+          }
+        : item
+    ),
+    updatedAt: new Date().toISOString()
+  };
+
+  policies.set(policyId, updated);
+  recordSelfImprovementAttempt({
+    ...result.attempt,
+    proposalId
+  });
+
+  return updated;
+}
+
+export function getSelfImprovementAttempts() {
+  return selfImprovementAttempts;
 }

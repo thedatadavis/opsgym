@@ -46,6 +46,15 @@ export interface ProposedChange {
   after: string;
   status: ApprovalStatus;
   createdAt: string;
+  summary?: string;
+  rationale?: string;
+  expectedBehavior?: SelfImprovementExpectedBehavior[];
+  risks?: string[];
+  confidence?: number;
+  agentProvider?: SelfImprovementAgentProvider;
+  agentId?: string;
+  interactionId?: string;
+  validatorErrors?: string[];
 }
 
 export interface DecisionQueueItem {
@@ -85,4 +94,51 @@ export interface DecisionResponse extends DecisionResult {
   action: string;
   queueItemId?: string;
   createdAt: string;
+}
+
+export type SelfImprovementAgentProvider = "local" | "gemini";
+
+export type SelfImprovementStatus = "completed" | "failed";
+
+export interface SelfImprovementExpectedBehavior {
+  action: string;
+  expectedDecision: DecisionKind;
+  reason: string;
+}
+
+export interface SelfImprovementInput {
+  policy: Policy;
+  queueItem: DecisionQueueItem;
+  relatedRuns: DecisionRun[];
+  reviewerHistory?: ProposedChange[];
+}
+
+export interface SelfImprovementProposal {
+  queueItemId: string;
+  title: string;
+  summary: string;
+  proposedPolicyText: string;
+  rationale: string;
+  expectedBehavior: SelfImprovementExpectedBehavior[];
+  risks: string[];
+  confidence: number;
+}
+
+export interface SelfImprovementAttempt {
+  policyId: string;
+  queueItemId: string;
+  agentProvider: SelfImprovementAgentProvider;
+  agentId: string;
+  interactionId?: string;
+  startedAt: string;
+  completedAt: string;
+  status: SelfImprovementStatus;
+  inputHash: string;
+  proposalId?: string;
+  validatorErrors: string[];
+}
+
+export interface SelfImprovementResult {
+  proposal: SelfImprovementProposal;
+  attempt: SelfImprovementAttempt;
 }
