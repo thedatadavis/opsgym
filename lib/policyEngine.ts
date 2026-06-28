@@ -19,6 +19,8 @@ const lower = (value: string) => value.toLowerCase();
 const includesAny = (value: string, terms: string[]) =>
   terms.some((term) => value.includes(term));
 
+const directiveStart = /^(pass|fail|wait|for|when)\b/i;
+
 const daysAgo = (input: string): number | null => {
   const match = input.match(/(\d+)\s*(?:day|days)\s*ago/i);
   return match ? Number(match[1]) : null;
@@ -177,6 +179,86 @@ export function buildProposedChange(queueItemId: string, gapType: GapType): Prop
   };
 }
 
+function stripSourceGap(value: string) {
+  return value.replace(/\s*Source gap:\s*[^.]+\.?/gi, "").trim();
+}
+
+function splitPolicySections(policyText: string) {
+  return policyText
+    .split(/\n{2,}/)
+    .map((section) => section.trim())
+    .filter(Boolean);
+}
+
+function keywordSet(value: string) {
+  const stopWords = new Set([
+    "a", "an", "and", "are", "as", "be", "but", "by", "case", "cases", "for", "from", "if",
+    "in", "inside", "is", "it", "of", "on", "or", "outside", "policy", "refund", "refunds",
+    "request", "requests", "should", "than", "the", "to", "when", "with", "without"
+  ]);
+
+  return new Set(
+    value
+      .toLowerCase()
+      .split(/[^a-z0-9-]+/)
+      .map((word) => word.trim())
+      .filter((word) => word.length > 2 && !stopWords.has(word))
+  );
+}
+
+function overlapScore(left: string, right: string) {
+  const leftWords = keywordSet(left);
+  const rightWords = keywordSet(right);
+  let score = 0;
+
+  for (const word of leftWords) {
+    if (rightWords.has(word)) score += 1;
+  }
+
+  return score;
+}
+
+function looksLikeFullPolicy(currentPolicyText: string, candidateText: string) {
+  const currentSections = splitPolicySections(currentPolicyText);
+  const candidateSections = splitPolicySections(candidateText);
+
+  if (candidateSections.length > 1) return true;
+  if (candidateText.length >= currentPolicyText.trim().length * 0.7) return true;
+
+  return currentSections.some((section) => candidateText.includes(section));
+}
+
+export function rewritePolicyText(policyText: string, proposedChange: ProposedChange): string {
+  const currentPolicyText = policyText.trim();
+  const candidateText = stripSourceGap(proposedChange.after);
+
+  if (!candidateText) return currentPolicyText;
+  if (looksLikeFullPolicy(currentPolicyText, candidateText)) return candidateText;
+  if (currentPolicyText.includes(candidateText)) return currentPolicyText;
+
+  const sections = splitPolicySections(currentPolicyText);
+  if (sections.length === 0) return candidateText;
+
+  const scoredSections = sections.map((section, index) => ({
+    index,
+    score: Math.max(overlapScore(section, proposedChange.before), overlapScore(section, candidateText))
+  }));
+  const best = scoredSections.sort((a, b) => b.score - a.score)[0];
+
+  if (!best || best.score < 2) {
+    return [...sections, candidateText].join("\n\n");
+  }
+
+  return sections
+    .map((section, index) => {
+      if (index !== best.index) return section;
+
+      const prefix = directiveStart.test(candidateText) ? "" : "Wait when ";
+      return `${prefix}${candidateText}`.trim();
+    })
+    .join("\n\n");
+}
+
 export function buildQueueItem(policyId: string, run: DecisionRun): DecisionQueueItem {
   const queueItemId = createId("queue");
   const gapType = run.gapType ?? "policy_gap";
@@ -200,15 +282,24 @@ export function applyProposedChange(policyRecord: Policy, queueItemId: string): 
   if (!queueItem) return policyRecord;
 
   const approvedAt = now();
-  const policyAlreadyIncludesChange = policyRecord.policy.includes(queueItem.proposedChange.after);
-  const updatedPolicyText = policyAlreadyIncludesChange
-    ? policyRecord.policy
-    : `${policyRecord.policy.trim()}\n\n${queueItem.proposedChange.after}`;
+  const updatedPolicyText = rewritePolicyText(policyRecord.policy, queueItem.proposedChange);
+  const policyWithUpdatedRules = {
+    ...policyRecord,
+    policy: updatedPolicyText,
+    generatedRulesJs: compilePolicyToJs(updatedPolicyText)
+  };
+  const openQueueItems = policyRecord.decisionQueue.filter((item) => item.status === "open");
+  const reruns = openQueueItems.map((item) => ({
+    ...buildRun(policyRecord.id, { action: item.action }, evaluateDecision(policyWithUpdatedRules, { action: item.action }), "policy_rerun"),
+    queueItemId: item.id
+  }));
+  const rerunByQueueItemId = new Map(reruns.map((run) => [run.queueItemId, run]));
 
   return {
     ...policyRecord,
     policy: updatedPolicyText,
-    generatedRulesJs: compilePolicyToJs(updatedPolicyText),
+    generatedRulesJs: policyWithUpdatedRules.generatedRulesJs,
+    runs: [...reruns, ...policyRecord.runs].slice(0, 100),
     decisionQueue: policyRecord.decisionQueue.map((item) =>
       item.id === queueItemId
         ? {
@@ -219,6 +310,14 @@ export function applyProposedChange(policyRecord: Policy, queueItemId: string): 
               status: "approved"
             }
           }
+        : item.status === "open"
+          ? {
+              ...item,
+              status: rerunByQueueItemId.get(item.id)?.decision === "wait" ? "open" : "resolved",
+              rationale: rerunByQueueItemId.get(item.id)?.rationale ?? item.rationale,
+              missingContext: rerunByQueueItemId.get(item.id)?.missingContext ?? item.missingContext,
+              gapType: rerunByQueueItemId.get(item.id)?.gapType ?? item.gapType
+            }
         : item
     ),
     updatedAt: approvedAt

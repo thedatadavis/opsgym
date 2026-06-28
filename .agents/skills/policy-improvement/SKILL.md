@@ -36,10 +36,13 @@ Return only JSON:
 
 `expectedDecision` must be one of `pass`, `fail`, or `wait`. `confidence` must be between `0` and `1`.
 
+`proposedPolicyText` must be the complete rewritten policy text after the proposed change. Do not return a standalone addendum. Remove or revise superseded clauses so approval replaces the live policy without duplicated or conflicting language.
+
 ## Proposal Guidance
 
 - Keep proposals narrow.
 - Prefer clarifying exception handling over broad new permissions.
 - Preserve existing fail boundaries.
+- Rewrite the whole policy while changing only the clauses needed for the queue item.
 - If the original case lacks required facts, the original case should usually remain `wait`.
 - Include a regression case that should still fail or wait after the policy change.

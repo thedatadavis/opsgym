@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { GoogleGenAI } from "@google/genai";
-import { createId } from "./policyEngine";
+import { createId, rewritePolicyText } from "./policyEngine";
 import type {
   DecisionKind,
   SelfImprovementAgentProvider,
@@ -25,7 +25,8 @@ Rules:
 - Do not auto-approve policy changes.
 - Do not invent facts that are missing from the queue item.
 - Preserve hard-denial boundaries unless the input explicitly asks to change them.
-- Prefer the smallest amendment that closes the observed ambiguity.
+- Rewrite the policy in full instead of returning an appended addendum.
+- Keep the rewritten policy concise and remove superseded or duplicate clauses.
 `;
 
 const fallbackPolicyImprovementSkill = `# Policy Improvement Skill
@@ -49,6 +50,8 @@ Output JSON:
   "risks": ["string"],
   "confidence": 0.0
 }
+
+The proposedPolicyText value must be the complete rewritten policy text, not a standalone addendum.
 `;
 
 function readAgentSource(relativePath: string, fallback: string) {
@@ -197,9 +200,7 @@ function localProposal(input: SelfImprovementInput): SelfImprovementProposal {
     missing.toLowerCase().includes("manager approval") ||
     existing.after.toLowerCase().includes("fail when manager approval is missing");
   const relatedWaits = input.relatedRuns.filter((run) => run.decision === "wait").length;
-  const proposedPolicyText = existing.after.includes("Source gap:")
-    ? existing.after
-    : `${existing.after} Source gap: ${gapLabel(input)}.`;
+  const proposedPolicyText = rewritePolicyText(input.policy.policy, existing);
 
   return {
     queueItemId: input.queueItem.id,
@@ -269,6 +270,8 @@ function buildAttempt(
 function proposalPrompt(input: SelfImprovementInput) {
   return [
     "Create a reviewer-safe self-improvement proposal for this OpsGym decision queue item.",
+    "Return the complete rewritten policy in proposedPolicyText, not an appended addendum.",
+    "Remove superseded or duplicate policy wording from the rewrite.",
     "Return only JSON matching the SKILL.md schema.",
     JSON.stringify(input, null, 2)
   ].join("\n\n");

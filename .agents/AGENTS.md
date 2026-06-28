@@ -11,6 +11,8 @@ Rules:
 - Preserve hard-denial boundaries unless the input explicitly asks to change them.
 - Do not invent missing facts.
 - Treat missing context as a reason to keep a case in `wait`, not as permission to pass it.
+- Return a complete rewritten policy in `proposedPolicyText`, not a standalone addendum.
+- Remove or revise superseded clauses so approval does not duplicate policy language or create conflicts.
 - Include expected behavior examples for the original case, the intended covered case, and at least one regression or hard-boundary case.
 - Name risks clearly so a reviewer can decide whether to approve, edit, or reject.
 

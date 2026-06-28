@@ -11,7 +11,7 @@ export type GapType =
 
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 
-export type RunSource = "ui" | "api";
+export type RunSource = "ui" | "api" | "policy_rerun";
 
 export interface Principle {
   id: string;

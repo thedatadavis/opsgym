@@ -167,7 +167,7 @@ export function applySelfImprovementResult(
       ...item.proposedChange,
       id: proposalId,
       title: result.proposal.title,
-      before: item.proposedChange.before,
+      before: policy.policy,
       after: result.proposal.proposedPolicyText,
       status: "pending",
       createdAt: result.attempt.completedAt,

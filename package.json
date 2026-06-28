@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "demo:batch": "node scripts/demo-batch.mjs",
+    "verify:policy-loop": "node scripts/verify-policy-loop.mjs",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"

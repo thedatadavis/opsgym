@@ -101,7 +101,7 @@ The endpoint:
 - Builds the documented `SelfImprovementInput` from the policy, queue item, related runs, and reviewer history.
 - Runs the configured self-improvement provider.
 - Validates the returned `SelfImprovementProposal`.
-- Stores a completed proposal as the queue item's pending `proposedChange`.
+- Stores a completed proposal as the queue item's pending `proposedChange`, with a full before/after policy rewrite.
 - Leaves the queue item open and keeps human approval mandatory.
 
 Approval and rejection are explicit API actions:
@@ -111,7 +111,7 @@ POST /api/policies/[policyId]/queue/[queueItemId]/approve
 POST /api/policies/[policyId]/queue/[queueItemId]/reject
 ```
 
-Approval appends the pending proposed change to the policy text and resolves the queue item. Rejection marks the queue item and proposal rejected without changing policy text.
+Approval replaces the live policy text with the pending full-policy rewrite, resolves the approved queue item, and re-runs open queue items against the updated policy. Queue items that now resolve to `pass` or `fail` are closed; items that still return `wait` remain open with refreshed rationale and missing-context fields. Rejection marks the queue item and proposal rejected without changing policy text.
 
 Provider selection:
 
