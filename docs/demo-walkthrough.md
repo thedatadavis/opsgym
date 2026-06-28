@@ -246,7 +246,7 @@ If production is not configured with Gemini, `agentProvider` will be `local`. In
 Narration:
 
 ```txt
-The self-improvement agent is not approving anything. It drafts a bounded amendment, expected behavior examples, risks, confidence, and metadata. OpsGym stores that as a pending proposed change.
+The self-improvement agent is not approving anything. It drafts a bounded full-policy rewrite, expected behavior examples, risks, confidence, and metadata. OpsGym stores that as a pending proposed change.
 ```
 
 The demo also exposes explicit approval/rejection APIs:
@@ -256,7 +256,7 @@ curl -s -X POST "https://opsgym.pdt.dev/api/policies/refund-policy/queue/$QUEUE_
 curl -s -X POST "https://opsgym.pdt.dev/api/policies/refund-policy/queue/$QUEUE_ITEM_ID/reject"
 ```
 
-Use the UI approval path for the human-review story. Use the approval API for scripted before/after measurements and tool-driven demos.
+Use the UI approval path for the human-review story. Use the approval API for scripted before/after measurements and tool-driven demos. Approval replaces the live policy with the reviewed rewrite and re-runs open queue items against the upgraded policy.
 
 ## 6. Review The Proposal In The UI
 
@@ -320,7 +320,7 @@ Expected result after approval:
 Narration:
 
 ```txt
-The system learned from the exception. Future runs are more deterministic: no manager approval fails, manager-approved damaged VIP refunds inside 90 days pass.
+The system learned from the exception. Queued tasks are re-evaluated against the rewritten policy, and future runs are more deterministic: no manager approval fails, manager-approved damaged VIP refunds inside 90 days pass.
 ```
 
 ## 8. Close With The Product Thesis

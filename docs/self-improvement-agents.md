@@ -26,8 +26,8 @@ The intended loop is:
 4. A self-improvement agent periodically or manually reviews queue items.
 5. The agent analyzes the run, policy text, principles, recent similar runs, and reviewer history.
 6. The agent proposes one or more policy edits, tests those edits against representative cases, and writes an explanation.
-7. A human reviewer approves, edits, or rejects the proposed policy change.
-8. Approved changes update the policy text and close the queue item.
+7. A human reviewer approves, edits, or rejects the proposed full-policy rewrite.
+8. Approved changes replace the policy text, close the approved queue item, and re-run open queue items against the new policy.
 9. Future decisions use the improved policy.
 
 The core invariant is that agents recommend policy changes, but humans approve changes before they affect live policy behavior.

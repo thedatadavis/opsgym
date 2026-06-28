@@ -51,9 +51,9 @@ graph TD
         G -->|2. Reads AGENTS.md / SKILL.md| I[Skill Guardrails]:::agent
         G -->|3. Runs Regression Tests| J[Policy Hardening Analysis]:::agent
         
-        J -->|Generates proposed change| K[Pending Review Diff]:::wait
-        K -->|Human Approves/Rejects| L[Apply Policy Amendment]:::happy
-        L -->|Upgraded Policy rules| B
+        J -->|Generates full policy rewrite| K[Pending Review Diff]:::wait
+        K -->|Human Approves/Rejects| L[Apply Rewritten Policy]:::happy
+        L -->|Re-run queued tasks| B
     end
 
     %% Apply styles
@@ -82,5 +82,5 @@ OpsGym is built from the ground up for containerized, serverless, and agentic wo
 3.  **Review the Proposal:** Under the **Queue** tab, select the newly generated item. You will see a detailed diff proposed by the Antigravity agent:
     *   *Before:* Standard 30-day limits.
     *   *After:* Hardened clause allowing VIP exceptions up to 90 days *only if* manager approval is explicitly attached.
-4.  **Approve and Harden:** Click **Approve**. The policy is immediately patched.
-5.  **Verify Continual Learning:** Re-run the exact same VIP refund request. It now resolves to `Pass` (or `Fail` depending on presence of approval context) instantly, proving the loop has successfully closed.
+4.  **Approve and Harden:** Click **Approve**. OpsGym replaces the live policy with the reviewed full-policy rewrite and re-runs open queue items against the upgraded rules.
+5.  **Verify Continual Learning:** Re-run the exact same VIP refund request. It now resolves to `Pass` or `Fail` depending on manager approval, proving the loop has successfully closed.

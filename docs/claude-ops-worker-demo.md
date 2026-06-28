@@ -22,7 +22,7 @@ Reference docs:
 - `decide_policy`: evaluates an action and records a run.
 - `get_policy_runs`: reads recent runs and queue items.
 - `draft_policy_improvement`: drafts a pending policy proposal.
-- `approve_policy_change`: approves a pending proposal and mutates policy text.
+- `approve_policy_change`: approves a pending proposal, replaces the live policy with the reviewed rewrite, and re-runs open queue items.
 
 ## Primary Prompt
 
@@ -49,7 +49,7 @@ Expected flow:
 3. Claude calls `decide_policy` for the ambiguous VIP case and receives `wait`.
 4. Claude calls `draft_policy_improvement` for the queue item.
 5. Claude shows the proposal and asks before approval.
-6. After explicit approval, Claude calls `approve_policy_change`.
+6. After explicit approval, Claude calls `approve_policy_change`; OpsGym applies the rewritten policy and re-runs open queue items.
 7. Claude re-tests the two VIP cases and gets `fail` without manager approval and `pass` with manager approval.
 
 ## Fallback
