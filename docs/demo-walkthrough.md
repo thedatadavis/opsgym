@@ -191,26 +191,20 @@ Expected result:
   "result": {
     "attempt": {
       "status": "completed",
-      "agentProvider": "local"
+      "agentProvider": "gemini"
     },
     "proposal": {
       "title": "Harden VIP refund exception",
       "expectedBehavior": [
         { "expectedDecision": "fail" },
-        { "expectedDecision": "pass" },
-        { "expectedDecision": "fail" }
+        { "expectedDecision": "pass" }
       ]
     }
   }
 }
 ```
 
-If production is configured with Gemini:
-
-```txt
-agentProvider = gemini
-agentId = antigravity-preview-05-2026 or GEMINI_POLICY_IMPROVER_AGENT_ID
-```
+If production is not configured with Gemini, `agentProvider` will be `local`. In the hackathon demo environment, prefer Gemini so the proposal is produced by the Managed Agents path.
 
 Narration:
 
