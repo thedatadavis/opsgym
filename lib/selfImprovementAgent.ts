@@ -193,6 +193,9 @@ function localProposal(input: SelfImprovementInput): SelfImprovementProposal {
   const missing = input.queueItem.missingContext.length > 0
     ? input.queueItem.missingContext.join(", ")
     : "the facts required by policy";
+  const convertsMissingApprovalToFail =
+    missing.toLowerCase().includes("manager approval") ||
+    existing.after.toLowerCase().includes("fail when manager approval is missing");
   const relatedWaits = input.relatedRuns.filter((run) => run.decision === "wait").length;
   const proposedPolicyText = existing.after.includes("Source gap:")
     ? existing.after
@@ -210,8 +213,10 @@ function localProposal(input: SelfImprovementInput): SelfImprovementProposal {
     expectedBehavior: [
       {
         action: input.queueItem.action,
-        expectedDecision: "wait",
-        reason: `The original case remains reviewable until ${missing} is supplied or an approved exception is explicit.`
+        expectedDecision: convertsMissingApprovalToFail ? "fail" : "wait",
+        reason: convertsMissingApprovalToFail
+          ? "The amendment makes missing manager approval an explicit denial boundary for the exception path."
+          : `The original case remains reviewable until ${missing} is supplied or an approved exception is explicit.`
       },
       {
         action: `${input.queueItem.action} Include explicit approval for ${missing}.`,

@@ -93,6 +93,7 @@ export interface DecisionResponse extends DecisionResult {
   policyId: string;
   action: string;
   queueItemId?: string;
+  queueItem?: DecisionQueueItem;
   createdAt: string;
 }
 

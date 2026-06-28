@@ -1,6 +1,7 @@
 import { buildQueueItem, buildRun, evaluateDecision } from "./policyEngine";
 import { cloneSeedPolicies } from "./seed";
 import type {
+  DecisionQueueItem,
   DecisionRequest,
   DecisionResponse,
   Policy,
@@ -105,6 +106,7 @@ export function recordServerDecision(policyId: string, request: DecisionRequest)
     policyId,
     action: runWithQueue.action,
     queueItemId: runWithQueue.queueItemId,
+    queueItem: queueItem ?? undefined,
     createdAt: runWithQueue.createdAt,
     decision: runWithQueue.decision,
     matchedPolicy: runWithQueue.matchedPolicy,
@@ -149,36 +151,42 @@ export function recordSelfImprovementAttempt(attempt: SelfImprovementAttempt) {
   selfImprovementAttempts.splice(100);
 }
 
-export function applySelfImprovementResult(policyId: string, result: SelfImprovementResult): Policy {
+export function applySelfImprovementResult(
+  policyId: string,
+  result: SelfImprovementResult,
+  fallbackQueueItem?: DecisionQueueItem
+): Policy {
   const policy = getServerPolicy(policyId);
   const proposalId = result.attempt.proposalId ?? `proposal-${Date.now().toString(36)}`;
+  const applyProposal = (item: DecisionQueueItem): DecisionQueueItem => ({
+    ...item,
+    proposedChange: {
+      ...item.proposedChange,
+      id: proposalId,
+      title: result.proposal.title,
+      before: item.proposedChange.before,
+      after: result.proposal.proposedPolicyText,
+      status: "pending",
+      createdAt: result.attempt.completedAt,
+      summary: result.proposal.summary,
+      rationale: result.proposal.rationale,
+      expectedBehavior: result.proposal.expectedBehavior,
+      risks: result.proposal.risks,
+      confidence: result.proposal.confidence,
+      agentProvider: result.attempt.agentProvider,
+      agentId: result.attempt.agentId,
+      interactionId: result.attempt.interactionId,
+      validatorErrors: result.attempt.validatorErrors
+    }
+  });
+  const hasQueueItem = policy.decisionQueue.some((item) => item.id === result.proposal.queueItemId);
   const updated: Policy = {
     ...policy,
-    decisionQueue: policy.decisionQueue.map((item) =>
+    decisionQueue: hasQueueItem ? policy.decisionQueue.map((item) =>
       item.id === result.proposal.queueItemId
-        ? {
-            ...item,
-            proposedChange: {
-              ...item.proposedChange,
-              id: proposalId,
-              title: result.proposal.title,
-              before: item.proposedChange.before,
-              after: result.proposal.proposedPolicyText,
-              status: "pending",
-              createdAt: result.attempt.completedAt,
-              summary: result.proposal.summary,
-              rationale: result.proposal.rationale,
-              expectedBehavior: result.proposal.expectedBehavior,
-              risks: result.proposal.risks,
-              confidence: result.proposal.confidence,
-              agentProvider: result.attempt.agentProvider,
-              agentId: result.attempt.agentId,
-              interactionId: result.attempt.interactionId,
-              validatorErrors: result.attempt.validatorErrors
-            }
-          }
+        ? applyProposal(item)
         : item
-    ),
+    ) : fallbackQueueItem ? [applyProposal(fallbackQueueItem), ...policy.decisionQueue] : policy.decisionQueue,
     updatedAt: new Date().toISOString()
   };
 

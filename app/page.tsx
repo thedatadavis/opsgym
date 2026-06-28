@@ -8,6 +8,7 @@ import type { DecisionKind, DecisionQueueItem, DecisionRun, Policy, Principle } 
 const policyStorageKey = "opsgym-policies-v1";
 const legacyStorageKey = "opsgym-workflows-v2";
 const legacyIdKey = "workflow" + "Id";
+const publicAppUrl = process.env.NEXT_PUBLIC_OPSGYM_APP_URL ?? "https://opsgym.pdt.dev";
 
 type Screen = "dashboard" | "policy";
 type DirectorySection = "overview" | "policy" | "principles" | "endpoint" | "queue" | "runs";
@@ -979,6 +980,7 @@ export default function Home() {
                           <h2>Decision Queue</h2>
                           <p>{openQueue.length} open decisions require review</p>
                         </div>
+                        <button onClick={() => refreshRuns()}>Refresh</button>
                       </div>
                       <QueueList
                         items={openQueue}
@@ -1071,15 +1073,19 @@ export default function Home() {
                 <div className="panelTop">
                   <div>
                     <h2>Endpoint Reference</h2>
-                    <code>POST {selectedPolicy.endpointPath}</code>
+                    <code>POST {publicAppUrl}{selectedPolicy.endpointPath}</code>
                   </div>
                 </div>
-                <pre>{`curl -X POST http://localhost:3000${selectedPolicy.endpointPath} \\
+                <pre>{`curl -X POST ${publicAppUrl}${selectedPolicy.endpointPath} \\
   -H "Content-Type: application/json" \\
   -d '{"action":"${endpointAction.replaceAll("'", "\\'")}"}'`}</pre>
                 <div className="apiSchemaBox">
                   <h3>Payload Format</h3>
                   <pre>{`{\n  "action": "string (the natural language request to evaluate)"\n}`}</pre>
+                </div>
+                <div className="apiSchemaBox">
+                  <h3>Self-Improvement Endpoint</h3>
+                  <pre>{`curl -X POST ${publicAppUrl}/api/policies/${selectedPolicy.id}/queue/${openQueue[0]?.id ?? "{queueItemId}"}/improve`}</pre>
                 </div>
               </section>
             )}
@@ -1091,6 +1097,7 @@ export default function Home() {
                     <h2>Decision Queue</h2>
                     <p>{openQueue.length} open decisions</p>
                   </div>
+                  <button onClick={() => refreshRuns()}>Refresh</button>
                 </div>
                 <QueueList
                   items={selectedPolicy.decisionQueue}
