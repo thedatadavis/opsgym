@@ -35,9 +35,13 @@ const hasApprovedVipException = (policyRecord: Pick<Policy, "policy">) => {
 };
 
 export function evaluateDecision(
-  policyRecord: Pick<Policy, "policy" | "principles">,
+  policyRecord: Pick<Policy, "policy" | "principles" | "generatedRulesJs">,
   request: DecisionRequest
 ): DecisionResult {
+  if (policyRecord.generatedRulesJs) {
+    const executed = executeGeneratedRules(policyRecord.generatedRulesJs, request);
+    if (executed) return executed;
+  }
   const text = lower(request.action);
   const age = daysAgo(request.action);
   const refund = includesAny(text, ["refund", "credit", "return"]);
@@ -197,12 +201,14 @@ export function applyProposedChange(policyRecord: Policy, queueItemId: string): 
 
   const approvedAt = now();
   const policyAlreadyIncludesChange = policyRecord.policy.includes(queueItem.proposedChange.after);
+  const updatedPolicyText = policyAlreadyIncludesChange
+    ? policyRecord.policy
+    : `${policyRecord.policy.trim()}\n\n${queueItem.proposedChange.after}`;
 
   return {
     ...policyRecord,
-    policy: policyAlreadyIncludesChange
-      ? policyRecord.policy
-      : `${policyRecord.policy.trim()}\n\n${queueItem.proposedChange.after}`,
+    policy: updatedPolicyText,
+    generatedRulesJs: compilePolicyToJs(updatedPolicyText),
     decisionQueue: policyRecord.decisionQueue.map((item) =>
       item.id === queueItemId
         ? {
@@ -238,4 +244,119 @@ export function rejectProposedChange(policyRecord: Policy, queueItemId: string):
     ),
     updatedAt: rejectedAt
   };
+}
+
+export function compilePolicyToJs(policyText: string): string {
+  const lines = policyText.split(/[.\n]+/).map(l => l.trim()).filter(Boolean);
+  const rules: string[] = [];
+  
+  const stemWord = (w: string) => {
+    if (w.endsWith("ies")) return w.slice(0, -3) + "y";
+    if (w.endsWith("s") && !w.endsWith("ss") && w.length > 4) return w.slice(0, -1);
+    return w;
+  };
+  
+  for (const line of lines) {
+    const lowerLine = line.toLowerCase();
+    let decision: "pass" | "fail" | "wait" | null = null;
+    
+    if (lowerLine.startsWith("pass")) {
+      decision = "pass";
+    } else if (lowerLine.startsWith("fail")) {
+      decision = "fail";
+    } else if (lowerLine.startsWith("wait")) {
+      decision = "wait";
+    }
+    
+    if (decision) {
+      const ageChecks: string[] = [];
+      let match;
+      
+      if (match = lowerLine.match(/inside\s+(\d+)\s*days?/)) {
+        const val = parseInt(match[1], 10);
+        ageChecks.push(`(age !== null && age <= ${val})`);
+      }
+      
+      if (match = lowerLine.match(/(?:older|outside|greater)\s+(?:than\s+)?(\d+)\s*days?/)) {
+        const val = parseInt(match[1], 10);
+        ageChecks.push(`(age !== null && age > ${val})`);
+      }
+      
+      if (match = lowerLine.match(/between\s+(\d+)\s+(?:and|to)\s+(\d+)\s*days?/)) {
+        const val1 = parseInt(match[1], 10);
+        const val2 = parseInt(match[2], 10);
+        ageChecks.push(`(age !== null && age >= ${val1} && age <= ${val2})`);
+      }
+
+      const cleanLine = lowerLine
+        .replace(/^(pass|fail|wait)\s+(refunds\s+for|refund\s+for|rules\s+for|requests\s+for|cases\s+of)?/i, "")
+        .replace(/(inside|outside|older|greater|between|than|and|to)?\s+\d+\s*days?/g, "");
+        
+      const stopWords = new Set([
+        "when", "then", "with", "from", "their", "under", "this", "that", "these", "those",
+        "should", "does", "doesnt", "would", "could", "is", "are", "was", "were", "be",
+        "been", "have", "has", "had", "a", "an", "the", "of", "in", "on", "at", "by", "for",
+        "but", "unless", "except", "if", "or"
+      ]);
+      
+      const words = cleanLine.split(/[^a-z0-9-]+/)
+        .map(w => w.trim())
+        .filter(w => w.length > 3 && !stopWords.has(w))
+        .map(w => stemWord(w));
+        
+      const uniqueKeywords = Array.from(new Set(words));
+      
+      const keywordConditions = uniqueKeywords.map(kw => `action.includes("${kw}")`).join(" && ");
+      const ageConditions = ageChecks.join(" && ");
+      
+      let condition = "";
+      if (keywordConditions && ageConditions) {
+        condition = `${keywordConditions} && ${ageConditions}`;
+      } else {
+        condition = keywordConditions || ageConditions || "false";
+      }
+      
+      rules.push(`
+  // Rule: "${line.replace(/"/g, '\\"')}"
+  if (${condition}) {
+    return {
+      decision: "${decision}",
+      matchedPolicy: ["policy"],
+      rationale: "${line.replace(/"/g, '\\"')}",
+      confidence: 0.85,
+      missingContext: []
+    };
+  }
+      `);
+    }
+  }
+
+  return `
+  const action = (request.action || "").toLowerCase();
+  
+  let age = null;
+  const ageMatch = request.action.match(/(\\d+)\\s*days?\\s+ago/i) || request.action.match(/purchased\\s+(\\d+)\\s*days?/i);
+  if (ageMatch) {
+    age = parseInt(ageMatch[1], 10);
+  }
+
+  const has = (words) => words.some(w => action.includes(w));
+
+  ${rules.join("\n")}
+  
+  return null;
+  `;
+}
+
+export function executeGeneratedRules(rulesJs: string, request: DecisionRequest): DecisionResult | null {
+  try {
+    const runner = new Function("request", rulesJs);
+    const result = runner(request) as DecisionResult | null;
+    if (result && typeof result.decision === "string" && Array.isArray(result.matchedPolicy)) {
+      return result;
+    }
+  } catch (err) {
+    console.error("Error executing generated rules JS:", err);
+  }
+  return null;
 }

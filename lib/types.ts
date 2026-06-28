@@ -81,6 +81,7 @@ export interface Policy {
   decisionQueue: DecisionQueueItem[];
   createdAt: string;
   updatedAt: string;
+  generatedRulesJs?: string;
 }
 
 export interface DecisionRequest {

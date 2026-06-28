@@ -1,4 +1,4 @@
-import { applyProposedChange, buildQueueItem, buildRun, evaluateDecision, rejectProposedChange } from "./policyEngine";
+import { applyProposedChange, buildQueueItem, buildRun, compilePolicyToJs, evaluateDecision, rejectProposedChange } from "./policyEngine";
 import { cloneSeedPolicies } from "./seed";
 import type {
   DecisionQueueItem,
@@ -27,6 +27,7 @@ function normalizeEndpointPath(id: string) {
 
 function fallbackPolicy(id: string): Policy {
   const createdAt = new Date().toISOString();
+  const policyText = "Wait when the policy does not contain enough information to make a safe Pass or Fail decision.";
 
   return {
     id,
@@ -36,8 +37,7 @@ function fallbackPolicy(id: string): Policy {
       .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
       .join(" ") || "Policy",
     description: "Policy-backed decision endpoint.",
-    policy:
-      "Wait when the policy does not contain enough information to make a safe Pass or Fail decision.",
+    policy: policyText,
     principles: [
       {
         id: "principle-default",
@@ -48,6 +48,7 @@ function fallbackPolicy(id: string): Policy {
     endpointPath: normalizeEndpointPath(id),
     runs: [],
     decisionQueue: [],
+    generatedRulesJs: compilePolicyToJs(policyText),
     createdAt,
     updatedAt: createdAt
   };
@@ -57,6 +58,7 @@ function ensureSeeded() {
   if (policies.size === 0) {
     const seeded = cloneSeedPolicies();
     for (const p of seeded) {
+      p.generatedRulesJs = compilePolicyToJs(p.policy);
       policies.set(p.id, p);
     }
   }
@@ -80,6 +82,7 @@ export function updateServerPolicy(policyRecord: Policy): Policy {
     endpointPath: normalizeEndpointPath(policyRecord.id),
     runs: (policyRecord.runs && policyRecord.runs.length > 0) ? policyRecord.runs : existing.runs,
     decisionQueue: (policyRecord.decisionQueue && policyRecord.decisionQueue.length > 0) ? policyRecord.decisionQueue : existing.decisionQueue,
+    generatedRulesJs: compilePolicyToJs(policyRecord.policy),
     updatedAt: new Date().toISOString()
   };
 

@@ -166,7 +166,8 @@ function coerceStoredPolicy(value: unknown): StoredPolicy | null {
     runs: Array.isArray(record.runs) ? (record.runs as LegacyDecisionRun[]) : [],
     decisionQueue: Array.isArray(record.decisionQueue) ? (record.decisionQueue as LegacyDecisionQueueItem[]) : [],
     createdAt: normalizeString(record.createdAt, new Date().toISOString()),
-    updatedAt: normalizeString(record.updatedAt, new Date().toISOString())
+    updatedAt: normalizeString(record.updatedAt, new Date().toISOString()),
+    generatedRulesJs: typeof record.generatedRulesJs === "string" ? record.generatedRulesJs : undefined
   };
 }
 
